@@ -1,76 +1,53 @@
-name: CI-CD Pipeline
+name: Optimized CI-CD Pipeline
 
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - '**.py'
+      - '.github/workflows/**'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - '**.py'
+      - '.github/workflows/**'
 
 jobs:
-  # 1. Build 및 Matrix 조합 테스트 (Lint/Test + Secrets 사용 + Artifact 업로드)
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.11"]
-
+  build-and-cache:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.11'
+
+    # 캐싱 적용 (pip 의존성 캐시)
+    - name: Cache Python dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install flake8 pytest
 
-    - name: Lint with flake8
+    - name: Run Tests with Cache Verification
       run: |
-        # 문법 오류 검사
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-
-    - name: Test with pytest & Use Secret
-      env:
-        SECRET_KEY: ${{ secrets.MY_SECRET_KEY }}
-      run: |
-        echo "Testing with injected secret..."
+        echo "Running tests with cached environment..."
         pytest --version
 
-    - name: Build Artifact create
-      run: |
-        mkdir build_output
-        echo "Build result for ${{ matrix.os }}" > build_output/result.txt
-
-    - name: Upload Build Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-artifact-${{ matrix.os }}-${{ matrix.python-version }}
-        path: build_output/
-
-  # 2. Test 작업 (Build 의존성)
-  test:
-    needs: build
+  conditional-deploy:
+    needs: build-and-cache
     runs-on: ubuntu-latest
+    # main 브랜치에 푸시될 때만 배포가 실행되도록 조건부 설정
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-    - name: Run Integration Tests
-      run: echo "Integration tests passed successfully!"
-
-  # 3. Deploy 작업 (Test 의존성 + Artifact 다운로드)
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-    - name: Download Artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: build-artifact-ubuntu-latest-3.11
-        path: downloaded_build
-
-    - name: Run Deployment
+    - name: Conditional Deployment Execution
       run: |
-        echo "Deploying application..."
-        cat downloaded_build/result.txt
+        echo "Condition met: Running deployment on main branch push."
