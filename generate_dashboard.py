@@ -35,3 +35,5 @@ plt.tight_layout()
 # 이미지 파일로 저장
 plt.savefig('dora_dashboard.png', dpi=300)
 print("✅ dora_dashboard.png 파일이 성공적으로 생성되었습니다!")
+
+#테스트 주석 추가
