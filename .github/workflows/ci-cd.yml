@@ -13,17 +13,22 @@ on:
       - '.github/workflows/**'
 
 jobs:
-  build-and-cache:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: ${{ matrix.python-version }}
 
-    # 캐싱 적용 (pip 의존성 캐시)
+    # 1. 캐싱 적용
     - name: Cache Python dependencies
       uses: actions/cache@v4
       with:
@@ -37,15 +42,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 pytest
 
-    - name: Run Tests with Cache Verification
+    - name: Run Tests with Cache
       run: |
-        echo "Running tests with cached environment..."
+        echo "Running tests on Matrix (${{ matrix.os }}, Python ${{ matrix.python-version }})..."
         pytest --version
 
-  conditional-deploy:
-    needs: build-and-cache
+  deploy:
+    needs: build
     runs-on: ubuntu-latest
-    # main 브랜치에 푸시될 때만 배포가 실행되도록 조건부 설정
+    # 2. 브랜치 및 푸시 조건부 배포
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
     - name: Conditional Deployment Execution
